@@ -4,6 +4,7 @@ import { generateId, objectsAreEqual, getOutermostChildrenEdgeMarginSum } from '
 function Slider(container, options, plugins) {
     let slider;
     let subs = {};
+    let fixedSlider = false;
     let initialSlide = null;
     let initialSlideIdx = 0;
 
@@ -17,6 +18,8 @@ function Slider(container, options, plugins) {
         }
         setSlides();
         setDetails(true);
+        // if this is a fixed slider, set the fixedSlider flag
+        fixedSlider = slider.options.fixedSlider || false;
         // check if initials slide (element) is set
         initialSlide = slider.options.initialSlide || null;
         // get the index of the initial slide
@@ -212,7 +215,7 @@ function Slider(container, options, plugins) {
         let slideRectLeft = slideRect.left;
         let slideRectWidth = slideRect.width;
         // If the slide is the initial slide, we need to adjust the scroll target
-        if (slide === slider.options.initialSlide) {
+        if (fixedSlider === true && slide === slider.options.initialSlide) {
             // fallback values
             if (containerWidth == 0 && slider.options.fixedContainerWidth) {
                 console.log('##### Slider init > Fallback: (container width) containerWidth: ', slider.options.fixedContainerWidth);
@@ -257,7 +260,7 @@ function Slider(container, options, plugins) {
             scrollTarget = slideStart;
         }
         if (scrollTarget !== null) {
-            if (slide === slider.options.initialSlide) {
+            if (fixedSlider === true && slide === slider.options.initialSlide) {
                 if (initialSlideIdx === 0) {
                     scrollTarget = scrollTarget - getLeftOffset();
                 }
@@ -389,7 +392,7 @@ function Slider(container, options, plugins) {
         return Math.floor(offset);
     }
     function moveToDirection(direction = "prev") {
-        const scrollStrategy = slider.options.scrollStrategy;
+			  const scrollStrategy = slider.options.scrollStrategy;
         const scrollLeft = slider.container.scrollLeft;
         const sliderRect = slider.container.getBoundingClientRect();
         const containerWidth = slider.container.offsetWidth;
@@ -458,22 +461,31 @@ function Slider(container, options, plugins) {
             }
         }
         // add left offset
-        let offsettedTargetScrollPosition = targetScrollPosition + getLeftOffset();
-        if (slider.activeSlideIdx === 0) {
-            offsettedTargetScrollPosition = targetScrollPosition;
+				let offsettedTargetScrollPosition = targetScrollPosition - getLeftOffset();
+				if (fixedSlider === true) {
+				    offsettedTargetScrollPosition = targetScrollPosition + getLeftOffset();
+				    if (fixedSlider === true && slider.activeSlideIdx === 0) {
+                offsettedTargetScrollPosition = targetScrollPosition;
+						}
+				    else if (fixedSlider === true && slider.activeSlideIdx === slider.initialSlideIdx) {
+                offsettedTargetScrollPosition = targetScrollPosition;
+						}
+            if (direction === 'next') {
+                offsettedTargetScrollPosition = targetScrollPosition - getLeftOffset();
+						}
+            if (Math.floor(offsettedTargetScrollPosition) >= 0) {
+                targetScrollPosition = offsettedTargetScrollPosition;
+				    }
         }
-				else if (slider.activeSlideIdx === slider.initialSlideIdx) {
-            offsettedTargetScrollPosition = targetScrollPosition;
-        }
-        if (direction === 'next') {
+				else {
             offsettedTargetScrollPosition = targetScrollPosition - getLeftOffset();
-        }
-        if (Math.floor(offsettedTargetScrollPosition) >= 0) {
-            targetScrollPosition = offsettedTargetScrollPosition;
-        }
+				    if (Math.floor(offsettedTargetScrollPosition) >= 0) {
+                targetScrollPosition = offsettedTargetScrollPosition + 32;
+				    }
+				}
         slider.emit('programmaticScrollStart');
         slider.container.style.scrollBehavior = slider.options.scrollBehavior;
-        slider.container.scrollLeft = targetScrollPosition;
+				slider.container.scrollLeft = targetScrollPosition;
         setTimeout(() => slider.container.style.scrollBehavior = '', 50);
     }
     function snapToClosestSlide(direction = "prev") {
