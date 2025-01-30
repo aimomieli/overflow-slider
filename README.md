@@ -46,6 +46,26 @@ const minimalSlider = new OverflowSlider(
 	document.querySelector( '.slider-container-here' ),
 );
 
+// fixed slider 
+// - width: 375px
+// - slide width: 253px;
+// - gap: 16px
+// - display active slide horizontally center
+// - display part of the previous/next slides
+// - center the first (and last) slide
+const fixedSlider = new OverflowSlider(
+  document.querySelector( '.slider-container-here' ),
+	{
+    emulateScrollSnap: true,
+    initialSlide: slider.querySelector('[data-selected="1"]') || null, // initial slide
+    fixedContainerWidth: 375, // slider container width
+    fixedSlideWidth: 253, // slide width
+    fixedSlideMarginLeft: 61, // center the slides
+    fixedSlideGap: 16, // gap between slides
+  }
+);
+
+
 // example with plugins
 const slider = new OverflowSlider(
 	document.querySelector( '.slider-container-here' ),
@@ -456,6 +476,10 @@ Auto-play is not supported at the moment but can probably be implemented as a pl
 * Document all plugins and their parameters here
 
 ## Changelog
+
+### 3.3.1-DEV
+* Add: Set active/initial slide
+* Add: Horizontally center the active slide
 
 ### 3.3.1
 

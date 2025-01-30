@@ -4,6 +4,9 @@ import { generateId, objectsAreEqual, getOutermostChildrenEdgeMarginSum } from '
 function Slider(container, options, plugins) {
     let slider;
     let subs = {};
+    let initialSlide = null;
+    let initialSlideIdx = 0;
+
     function init() {
         slider.container = container;
         // ensure container has id
@@ -14,7 +17,20 @@ function Slider(container, options, plugins) {
         }
         setSlides();
         setDetails(true);
-        setActiveSlideIdx();
+        // check if initials slide (element) is set
+        initialSlide = slider.options.initialSlide || null;
+        // get the index of the initial slide
+        const selectedIndex = Array.from(slider.slides).indexOf(initialSlide);
+        // set the initial slide index
+        initialSlideIdx = selectedIndex || slider.options.initialSlideIndex || 0;
+        // set active slide index to initial slide index
+        setActiveSlideIdx(initialSlideIdx);
+        // start slider and ensure the initial slide is in view
+        startFromSlide(initialSlideIdx);
+        // add a class to the initial slide
+        if ( slider.slides[initialSlideIdx] ) {
+            slider.slides[initialSlideIdx].classList.add('initial-slide');
+        }
         slider.on('contentsChanged', () => {
             setSlides();
             setDetails();
@@ -189,13 +205,44 @@ function Slider(container, options, plugins) {
         }
     }
     function ensureSlideIsInView(slide, scrollBehavior = null) {
-        const behavior = scrollBehavior || slider.options.scrollBehavior;
-        const slideRect = slide.getBoundingClientRect();
-        const sliderRect = slider.container.getBoundingClientRect();
-        const containerWidth = slider.container.offsetWidth;
-        const scrollLeft = slider.container.scrollLeft;
-        const slideStart = slideRect.left - sliderRect.left + scrollLeft;
-        const slideEnd = slideStart + slideRect.width;
+        let behavior = scrollBehavior || slider.options.scrollBehavior;
+        let slideRect = slide.getBoundingClientRect();
+        let sliderRect = slider.container.getBoundingClientRect();
+        let containerWidth = slider.container.offsetWidth;
+        let slideRectLeft = slideRect.left;
+        let slideRectWidth = slideRect.width;
+        // If the slide is the initial slide, we need to adjust the scroll target
+        if (slide === slider.options.initialSlide) {
+            // fallback values
+            if (containerWidth == 0 && slider.options.fixedContainerWidth) {
+                console.log('##### Slider init > Fallback: (container width) containerWidth: ', slider.options.fixedContainerWidth);
+                containerWidth = slider.options.fixedContainerWidth;
+            }
+            if (slideRectWidth === 0 && slider.options.fixedSlideWidth) {
+                console.log('##### Slider init > Fallback (slide width): slideRectWidth: ', slider.options.fixedSlideWidth);
+                slideRectWidth = slider.options.fixedSlideWidth;
+            }
+            if (initialSlideIdx === 0) {
+                if (slideRectLeft == 0 && slider.options.fixedSlideMarginLeft) {
+                    console.log('##### Slider init > Fallback (slide ml): slideRectLeft: ', slider.options.fixedSlideMarginLeft);
+                    slideRectLeft = slider.options.fixedSlideMarginLeft;
+                }
+            }
+            else {
+                let selectedIndex = Array.from(slider.slides).indexOf(slide);
+                if (slideRectLeft == 0 && slider.options.fixedSlideMarginLeft) {
+                    let slideGap = 16;
+                    if (slider.options.fixedSlideGap) {
+                        slideGap = slider.options.fixedSlideGap;
+                    }
+                    slideRectLeft = slider.options.fixedSlideMarginLeft + (selectedIndex * (slider.options.fixedSlideWidth + slideGap));
+                    console.log('##### Slider init > Fallback (slide ml): slideRectLeft: ', slideRectLeft );
+                }
+            }
+        }
+        let scrollLeft = slider.container.scrollLeft;
+        let slideStart = slideRectLeft - sliderRect.left + scrollLeft;
+        let slideEnd = slideStart + slideRectWidth;
         let scrollTarget = null;
         if (Math.floor(slideStart) < Math.floor(scrollLeft)) {
             scrollTarget = slideStart;
@@ -210,18 +257,32 @@ function Slider(container, options, plugins) {
             scrollTarget = slideStart;
         }
         if (scrollTarget !== null) {
+            if (slide === slider.options.initialSlide) {
+                if (initialSlideIdx === 0) {
+                    scrollTarget = scrollTarget - getLeftOffset();
+                }
+                else {
+                    scrollTarget = scrollTarget + getLeftOffset();
+                }
+                behavior = 'instant';
+                if (scrollTarget < 0) {
+                    scrollTarget = 0;
+                }
+            }
             setTimeout((scrollTarget) => {
                 slider.emit('programmaticScrollStart');
                 slider.container.scrollTo({ left: scrollTarget, behavior: behavior });
             }, 50, scrollTarget);
         }
     }
-    function setActiveSlideIdx() {
+    function setActiveSlideIdx(initialSlideIdx = 0) {
         const sliderRect = slider.container.getBoundingClientRect();
         const scrollLeft = slider.getScrollLeft();
         const slides = slider.slides;
-        let activeSlideIdx = 0;
+        let activeSlideIdx = initialSlideIdx || 0;
+
         let scrolledPastLastSlide = false;
+
         if (slider.options.rtl) {
             const scrolledDistance = slider.getInclusiveScrollWidth() - scrollLeft - slider.getInclusiveClientWidth();
             const slidePositions = [];
@@ -270,11 +331,19 @@ function Slider(container, options, plugins) {
         if (oldActiveSlideIdx !== activeSlideIdx) {
             slider.emit('activeSlideChanged');
         }
+        slider.slides.forEach(slide => slide.classList.remove('active', 'initial-slide'));
+        slider.slides[activeSlideIdx].classList.add('active');
     }
     function moveToSlide(idx) {
         const slide = slider.slides[idx];
         if (slide) {
             ensureSlideIsInView(slide);
+        }
+    }
+    function startFromSlide(idx) {
+        const slide = slider.slides[idx];
+        if (slide) {
+            ensureSlideIsInView(slide, 'instant');
         }
     }
     function moveToSlideInDirection(direction) {
@@ -389,7 +458,16 @@ function Slider(container, options, plugins) {
             }
         }
         // add left offset
-        const offsettedTargetScrollPosition = targetScrollPosition - getLeftOffset();
+        let offsettedTargetScrollPosition = targetScrollPosition + getLeftOffset();
+        if (slider.activeSlideIdx === 0) {
+            offsettedTargetScrollPosition = targetScrollPosition;
+        }
+				else if (slider.activeSlideIdx === slider.initialSlideIdx) {
+            offsettedTargetScrollPosition = targetScrollPosition;
+        }
+        if (direction === 'next') {
+            offsettedTargetScrollPosition = targetScrollPosition - getLeftOffset();
+        }
         if (Math.floor(offsettedTargetScrollPosition) >= 0) {
             targetScrollPosition = offsettedTargetScrollPosition;
         }
